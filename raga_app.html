@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carnatic Ragam Guessing Game</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; }
+        #current-piece { font-weight: bold; margin-bottom: 20px; }
+        form { margin-bottom: 20px; }
+        input, button, select { margin: 5px 0; padding: 8px; width: 100%; box-sizing: border-box; }
+        #guesses-list { list-style-type: none; padding: 0; }
+        #guesses-list li { background: #f0f0f0; margin: 5px 0; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Carnatic Concert Ragam Guessing</h1>
+    <div id="current-piece">Current Piece: Loading...</div>
+    
+    <h2>Set Current Piece (e.g., "Kriti by Artist")</h2>
+    <input type="text" id="piece-input" placeholder="Enter current piece description">
+    <button id="set-piece-btn">Update Current Piece</button>
+    <button id="clear-guesses-btn">Clear Guesses for New Song</button>
+    
+    <h2>Submit Your Guess</h2>
+    <form id="guess-form">
+        <input type="text" id="name-input" placeholder="Your name (optional)">
+        <input type="text" id="ragam-input" list="ragas" placeholder="Guess the ragam (e.g., Mohanam)">
+        <datalist id="ragas">
+            <option value="Abheri">
+            <option value="Abhogi">
+            <option value="Ahiri">
+            <option value="Amritavarshini">
+            <option value="Anandabhairavi">
+            <option value="Arabhi">
+            <option value="Begada">
+            <option value="Bhairavi">
+            <option value="Bilahari">
+            <option value="Dhanyasi">
+            <option value="Dvijavanti">
+            <option value="Hamsadhwani">
+            <option value="Hindolam">
+            <option value="Kalyani">
+            <option value="Kambhoji">
+            <option value="Kanada">
+            <option value="Kapi">
+            <option value="Khamas">
+            <option value="Kharaharapriya">
+            <option value="Madhyamavati">
+            <option value="Mayamalavagowla">
+            <option value="Mohanam">
+            <option value="Nattai">
+            <option value="Pantuvarali">
+            <option value="Reetigaula">
+            <option value="Sahana">
+            <option value="Sankarabharanam">
+            <option value="Saveri">
+            <option value="Shankarabharanam">
+            <option value="Simhendramadhyamam">
+            <option value="Thodi">
+            <option value="Varali">
+        </datalist>
+        <button type="submit">Submit Guess</button>
+    </form>
+    
+    <h2>Current Guesses</h2>
+    <ul id="guesses-list"></ul>
+
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
+        import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics.js';
+        import { getDatabase, ref, set, push, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCOEut34eU5ZbMzbW9Kitdm-yVYbhkefrI",
+            authDomain: "carnaticragamguess.firebaseapp.com",
+            databaseURL: "https://carnaticragamguess-default-rtdb.firebaseio.com",
+            projectId: "carnaticragamguess",
+            storageBucket: "carnaticragamguess.appspot.com",
+            messagingSenderId: "141633414129",
+            appId: "1:141633414129:web:36d404c2f72a15acb21a50",
+            measurementId: "G-TQ7SQS1L55"
+        };
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getDatabase(app);
+
+        const currentPieceRef = ref(db, 'current_piece');
+        const guessesRef = ref(db, 'guesses');
+
+        // Update current piece display in real-time
+        onValue(currentPieceRef, (snapshot) => {
+            const piece = snapshot.val() || 'Not set yet';
+            document.getElementById('current-piece').textContent = `Current Piece: ${piece}`;
+        });
+
+        // Update guesses list in real-time
+        onValue(guessesRef, (snapshot) => {
+            const guessesList = document.getElementById('guesses-list');
+            guessesList.innerHTML = '';
+            snapshot.forEach((childSnapshot) => {
+                const guess = childSnapshot.val();
+                const li = document.createElement('li');
+                li.textContent = `${guess.name ? guess.name + ': ' : ''}${guess.ragam}`;
+                guessesList.appendChild(li);
+            });
+        });
+
+        // Set current piece
+        document.getElementById('set-piece-btn').addEventListener('click', () => {
+            const piece = document.getElementById('piece-input').value.trim();
+            if (piece) {
+                set(currentPieceRef, piece);
+                document.getElementById('piece-input').value = '';
+            }
+        });
+
+        // Clear guesses
+        document.getElementById('clear-guesses-btn').addEventListener('click', () => {
+            remove(guessesRef);
+        });
+
+        // Submit guess
+        document.getElementById('guess-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name-input').value.trim();
+            const ragam = document.getElementById('ragam-input').value.trim();
+            if (ragam) {
+                push(guessesRef, { name, ragam });
+                document.getElementById('name-input').value = '';
+                document.getElementById('ragam-input').value = '';
+            }
+        });
+    </script>
+</body>
+</html>
