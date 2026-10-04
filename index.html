@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raga Guess</title>
+<style>
+:root{--bg:#faf6ee;--card:#fff;--ink:#2b2118;--mut:#7a6a58;--acc:#b5451b;--ok:#2e7d32;--bad:#b3261e;--line:#e6dccb}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1712;--card:#272018;--ink:#f1e8da;--mut:#a89883;--acc:#e8825a;--ok:#6fcf74;--bad:#ff8a80;--line:#3a3025}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:.2em 0}h2{font-size:1.1rem;margin:1.2em 0 .4em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+input,select,button{font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%;margin:4px 0}
+button{background:var(--acc);color:#fff;border:0;font-weight:600;cursor:pointer}button.alt{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.mut{color:var(--mut);font-size:.9rem}.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:.8rem;background:var(--line)}
+.opt{background:var(--card);color:var(--ink);border:2px solid var(--line);text-align:left}.opt.sel{border-color:var(--acc)}
+.ok{color:var(--ok);font-weight:700}.bad{color:var(--bad)}
+table{width:100%;border-collapse:collapse}td,th{padding:6px 4px;text-align:left;border-bottom:1px solid var(--line)}td:last-child,th:last-child,td:nth-child(2),th:nth-child(2){text-align:right}
+.code{font-size:1.6rem;letter-spacing:.2em;font-weight:800;color:var(--acc)}
+</style>
+</head>
+<body><main>
+<h1>🎶 Raga Guess</h1>
+<div id="view"></div>
+</main>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
+import {getDatabase,ref,set,get,update,onValue} from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js';
+const app=initializeApp({apiKey:"AIzaSyCOEut34eU5ZbMzbW9Kitdm-yVYbhkefrI",authDomain:"carnaticragamguess.firebaseapp.com",databaseURL:"https://carnaticragamguess-default-rtdb.firebaseio.com",projectId:"carnaticragamguess",appId:"1:141633414129:web:36d404c2f72a15acb21a50"});
+const db=getDatabase(app);
+
+const RAGAS=["Abheri","Abhogi","Ahiri","Amritavarshini","Anandabhairavi","Arabhi","Atana","Begada","Behag","Bhairavi","Bhupalam","Bilahari","Brindavani","Chakravakam","Charukesi","Dhanyasi","Dharmavati","Dwijavanti","Gambhiranata","Gaula","Hamsadhwani","Hamsanadam","Hindolam","Hamir Kalyani","Kalyani","Kambhoji","Kanada","Kapi","Karaharapriya","Keeravani","Khamas","Latangi","Madhyamavati","Malayamarutham","Mayamalavagowla","Mohanam","Mukhari","Nalinakanti","Nata","Natakurinji","Nattai","Neelambari","Pantuvarali","Poorvikalyani","Rasikapriya","Reethigowla","Revathi","Saama","Sahana","Sankarabharanam","Saramati","Saveri","Shanmukhapriya","Simhendramadhyamam","Sindhubhairavi","Sriranjani","Sri","Surutti","Suddha Saveri","Thodi","Varali","Vasantha","Vachaspati","Yadukulakambhoji","Yamunakalyani"];
+// canonical key: lowercase letters only, "h" dropped, so Todi/Thodi, Shankarabharanam/Sankarabharanam collapse together
+const ALIAS={todi:"todi",hanumatodi:"todi",dheerasankarabharanam:"sankarabaranam",harikambhoji:"yadukulakambhoji",mechakalyani:"kalyani",kharaharapriya:"karaharapriya",reetigaula:"reethigowla",ritigowla:"reethigowla",dvijavanti:"dwijavanti"};
+const key=s=>{let k=(s||"").toLowerCase().replace(/[^a-z]/g,"");if(ALIAS[k])k=ALIAS[k];return k.replace(/h/g,"")};
+const same=(a,b)=>{const x=key(a),y=key(b);return !!x&&x===y};
+const $=s=>document.querySelector(s),V=$('#view');
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ls={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+let pid=ls.get('rg_pid');if(!pid){pid=Math.random().toString(36).slice(2,12);ls.set('rg_pid',pid)}
+let unsub=[];const clear=()=>{unsub.forEach(f=>f());unsub=[]};
+const code5=()=>{const c="ABCDEFGHJKMNPQRSTUVWXYZ23456789";return Array.from({length:5},()=>c[Math.random()*c.length|0]).join("")};
+const dl=`<datalist id=rl>${RAGAS.map(r=>`<option value="${r}">`).join('')}</datalist>`;
+
+function home(){clear();if(location.hash)history.replaceState(null,'',location.pathname);
+V.innerHTML=`<div class="card"><h2>Join a concert</h2>
+<input id=jc placeholder="Room code" maxlength=5 style="text-transform:uppercase">
+<input id=jn placeholder="Your name" value="${esc(ls.get('rg_name')||'')}" maxlength=24>
+<button id=jb>Join</button></div>
+<div class="card"><h2>Host a concert (moderator)</h2>
+<input id=cn placeholder="Concert name, e.g. Margazhi Kutcheri" maxlength=80>
+<button id=cb class=alt>Create room</button>
+<p class=mut>You get a room code to share. You enter each song's raga privately and reveal it when ready, so nobody can peek.</p></div>`;
+$('#jb').onclick=()=>{const c=$('#jc').value.trim().toUpperCase(),n=$('#jn').value.trim();if(!c||!n)return alert('Enter room code and name');ls.set('rg_name',n);location.hash='#/'+c};
+$('#cb').onclick=async()=>{const n=$('#cn').value.trim();if(!n)return alert('Name your concert');const c=code5();
+await set(ref(db,`rooms/${c}/meta`),{name:n,mod:pid,created:Date.now(),current:0});location.hash='#/'+c};}
+
+async function room(c){clear();
+const meta=await get(ref(db,`rooms/${c}/meta`));
+if(!meta.exists()){V.innerHTML=`<div class=card>Room <b>${esc(c)}</b> not found. <button id=bk>Back</button></div>`;$('#bk').onclick=home;return}
+let M=meta.val();const isMod=M.mod===pid;let name=ls.get('rg_name');
+if(!isMod&&!name){name=prompt('Your name?')||'Guest'+(Math.random()*99|0);ls.set('rg_name',name)}
+if(!isMod)set(ref(db,`rooms/${c}/players/${pid}`),{name});
+let songs={},guesses={},players={},sel=null;
+const secret=n=>ls.get(`rg_ans_${c}_${n}`);
+const pts=(n,p)=>{const s=songs[n];if(!s||s.status!=='revealed')return 0;
+const ok=Object.entries(guesses[n]||{}).filter(([,v])=>same(v.raga,s.answer)).sort((a,b)=>a[1].at-b[1].at);
+const i=ok.findIndex(([k])=>k===p);return i<0?0:10+([5,3,1][i]||0)};
+const modUI=(cur,s)=>`<div class=card><h2>Songs</h2>
+${s?`<div><span class=pill>#${cur} · ${esc(s.status)}</span> <b>${esc(s.title)}</b> ${s.ts?`<span class=mut>@ ${esc(s.ts)}</span>`:''}</div>
+<div class=mut>${Object.keys(guesses[cur]||{}).length} guesses in · your answer: <b>${esc(secret(cur)||'(not on this device)')}</b></div>
+<div class=row>${s.status==='open'?'<button id=lock>Lock guesses</button>':''}${s.status!=='revealed'?'<button id=reveal>Reveal answer</button>':''}</div>`:'<div class=mut>No song yet.</div>'}
+<h2>Next song</h2><input id=st placeholder="Title (e.g. Song 1 - Varnam)"><input id=sts placeholder="Timestamp (optional, e.g. 12:30)">
+<input id=sa placeholder="The raga (secret until reveal)" list=rl>${dl}
+<input id=so placeholder="Multiple choice? Comma-separated options (blank = free text)">
+<button id=ns>Start song</button></div>`;
+const playUI=(cur,s)=>{if(!s)return`<div class=card><h2>Waiting for the first song…</h2><div class=mut>The moderator will start it shortly.</div></div>`;
+const mine=(guesses[cur]||{})[pid];const open=s.status==='open';
+let h=`<div class=card><span class=pill>#${cur} · ${esc(s.status)}</span> <b>${esc(s.title)}</b> ${s.ts?`<span class=mut>@ ${esc(s.ts)}</span>`:''}`;
+if(s.status==='revealed'){h+=`<p>Answer: <b class=ok>${esc(s.answer)}</b></p><p>${mine?(same(mine.raga,s.answer)?`<span class=ok>You got it! +${pts(cur,pid)}</span>`:`<span class=bad>You guessed ${esc(mine.raga)}</span>`):'<span class=mut>You did not guess.</span>'}</p>`}
+else if(mine)h+=`<p>Your guess: <b>${esc(mine.raga)}</b> ${open?'<span class=mut>(you can change it)</span>':''}</p>`;
+if(open){if(s.options&&s.options.length)h+=s.options.map(o=>`<button class="opt ${sel===o?'sel':''}" data-o="${esc(o)}">${esc(o)}</button>`).join('');
+else h+=`<input id=gr list=rl placeholder="Guess the raga" value="${esc(sel||'')}">${dl}`;
+h+=`<button id=sg>Submit guess</button>`}
+else if(s.status==='locked')h+=`<p class=mut>Guesses are locked. Waiting for the reveal…</p>`;
+return h+'</div>'};
+const board=()=>{const sc={};Object.entries(players).forEach(([k,v])=>sc[k]={n:v.name,s:0,c:0});
+Object.keys(songs).forEach(n=>{Object.keys(guesses[n]||{}).forEach(p=>{sc[p]=sc[p]||{n:guesses[n][p].name,s:0,c:0};const x=pts(n,p);if(x){sc[p].s+=x;sc[p].c++}})});
+const r=Object.entries(sc).sort((a,b)=>b[1].s-a[1].s);
+return`<div class=card><h2>Leaderboard</h2><table><tr><th>Player</th><th>Right</th><th>Pts</th></tr>${r.map(([k,v])=>`<tr><td>${esc(v.n)}${k===pid?' (you)':''}</td><td>${v.c}</td><td>${v.s}</td></tr>`).join('')||'<tr><td colspan=3 class=mut>No players yet</td></tr>'}</table><div class=mut>10 pts per correct raga, +5/+3/+1 for the first three correct guesses.</div></div>`};
+const wire=(cur)=>{$('#lv').onclick=home;
+if(isMod){const R=ref(db,`rooms/${c}`);
+$('#ns').onclick=async()=>{const t=$('#st').value.trim(),a=$('#sa').value.trim();if(!t||!a)return alert('Title and raga required');
+const n=(M.current||0)+1,o=$('#so').value.split(',').map(x=>x.trim()).filter(Boolean);ls.set(`rg_ans_${c}_${n}`,a);
+await update(R,{[`songs/${n}`]:{title:t,ts:$('#sts').value.trim(),options:o,status:'open',started:Date.now()},'meta/current':n})};
+$('#lock')&&($('#lock').onclick=()=>update(ref(db,`rooms/${c}/songs/${cur}`),{status:'locked'}));
+$('#reveal')&&($('#reveal').onclick=()=>{const a=secret(cur)||prompt('Enter the raga to reveal');if(a)update(ref(db,`rooms/${c}/songs/${cur}`),{status:'revealed',answer:a})});return}
+document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{sel=b.dataset.o;draw()});
+$('#gr')&&($('#gr').oninput=e=>sel=e.target.value);
+$('#sg')&&($('#sg').onclick=()=>{const v=(sel||'').trim();if(!v)return;set(ref(db,`rooms/${c}/guesses/${cur}/${pid}`),{name,raga:v,at:Date.now()})})};
+function draw(){const ae=document.activeElement;if(ae&&ae.tagName==='INPUT'&&ae.id!=='')return; // don't wipe a field someone is typing in
+const cur=M.current,s=songs[cur];
+let h=`<div class=card><div class=mut>${isMod?'Moderator':'Player: '+esc(name)}</div><div class=code>${esc(c)}</div><b>${esc(M.name)}</b></div>`;
+h+=isMod?modUI(cur,s):playUI(cur,s);h+=board()+`<button class=alt id=lv>Leave</button>`;V.innerHTML=h;wire(cur)}
+for(const[k,f]of[['meta',v=>{if(v)M=v}],['songs',v=>songs=v||{}],['guesses',v=>guesses=v||{}],['players',v=>players=v||{}]])
+unsub.push(onValue(ref(db,`rooms/${c}/${k}`),s=>{f(s.val());draw()}));
+draw();}
+const route=()=>{const m=location.hash.match(/^#\/([A-Za-z0-9]{3,8})$/);m?room(m[1].toUpperCase()):home()};
+addEventListener('hashchange',route);route();
+</script></body></html>
