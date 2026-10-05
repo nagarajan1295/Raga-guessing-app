@@ -4,11 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Raga Guess</title>
+<meta name="theme-color" content="#b5451b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Raga Guess">
+<meta name="description" content="Guess the raga live during a Carnatic concert, with friends.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
 :root{--bg:#faf6ee;--card:#fff;--ink:#2b2118;--mut:#7a6a58;--acc:#b5451b;--ok:#2e7d32;--bad:#b3261e;--line:#e6dccb}
 @media(prefers-color-scheme:dark){:root{--bg:#1c1712;--card:#272018;--ink:#f1e8da;--mut:#a89883;--acc:#e8825a;--ok:#6fcf74;--bad:#ff8a80;--line:#3a3025}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,sans-serif}
-main{max-width:640px;margin:0 auto;padding:16px}
+main{max-width:640px;margin:0 auto;padding:16px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+@media(min-width:900px){main{max-width:980px}#view.room{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;align-items:start}#view.room>.span{grid-column:1/-1}}
+input,button{min-height:44px}
 h1{font-size:1.5rem;margin:.2em 0}h2{font-size:1.1rem;margin:1.2em 0 .4em}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
 input,select,button{font:inherit;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%;margin:4px 0}
@@ -44,7 +53,7 @@ let unsub=[];const clear=()=>{unsub.forEach(f=>f());unsub=[]};
 const code5=()=>{const c="ABCDEFGHJKMNPQRSTUVWXYZ23456789";return Array.from({length:5},()=>c[Math.random()*c.length|0]).join("")};
 const dl=`<datalist id=rl>${RAGAS.map(r=>`<option value="${r}">`).join('')}</datalist>`;
 
-function home(){clear();if(location.hash)history.replaceState(null,'',location.pathname);
+function home(){clear();V.classList.remove('room');if(location.hash)history.replaceState(null,'',location.pathname);
 V.innerHTML=`<div class="card"><h2>Join a concert</h2>
 <input id=jc placeholder="Room code" maxlength=5 style="text-transform:uppercase">
 <input id=jn placeholder="Your name" value="${esc(ls.get('rg_name')||'')}" maxlength=24>
@@ -90,7 +99,7 @@ const board=()=>{const sc={};Object.entries(players).forEach(([k,v])=>sc[k]={n:v
 Object.keys(songs).forEach(n=>{Object.keys(guesses[n]||{}).forEach(p=>{sc[p]=sc[p]||{n:guesses[n][p].name,s:0,c:0};const x=pts(n,p);if(x){sc[p].s+=x;sc[p].c++}})});
 const r=Object.entries(sc).sort((a,b)=>b[1].s-a[1].s);
 return`<div class=card><h2>Leaderboard</h2><table><tr><th>Player</th><th>Right</th><th>Pts</th></tr>${r.map(([k,v])=>`<tr><td>${esc(v.n)}${k===pid?' (you)':''}</td><td>${v.c}</td><td>${v.s}</td></tr>`).join('')||'<tr><td colspan=3 class=mut>No players yet</td></tr>'}</table><div class=mut>10 pts per correct raga, +5/+3/+1 for the first three correct guesses.</div></div>`};
-const wire=(cur)=>{$('#lv').onclick=home;
+const wire=(cur)=>{$('#lv').onclick=home;$('#sh').onclick=async()=>{const u=location.origin+location.pathname+'#/'+c,t='Join my raga quiz: '+M.name;try{if(navigator.share)await navigator.share({title:'Raga Guess',text:t,url:u});else{await navigator.clipboard.writeText(u);$('#sh').textContent='Link copied!'}}catch{}};
 if(isMod){const R=ref(db,`rooms/${c}`);
 $('#ns').onclick=async()=>{const t=$('#st').value.trim(),a=$('#sa').value.trim();if(!t||!a)return alert('Title and raga required');
 const n=(M.current||0)+1,o=$('#so').value.split(',').map(x=>x.trim()).filter(Boolean);ls.set(`rg_ans_${c}_${n}`,a);
@@ -102,11 +111,12 @@ $('#gr')&&($('#gr').oninput=e=>sel=e.target.value);
 $('#sg')&&($('#sg').onclick=()=>{const v=(sel||'').trim();if(!v)return;set(ref(db,`rooms/${c}/guesses/${cur}/${pid}`),{name,raga:v,at:Date.now()})})};
 function draw(){const ae=document.activeElement;if(ae&&ae.tagName==='INPUT'&&ae.id!=='')return; // don't wipe a field someone is typing in
 const cur=M.current,s=songs[cur];
-let h=`<div class=card><div class=mut>${isMod?'Moderator':'Player: '+esc(name)}</div><div class=code>${esc(c)}</div><b>${esc(M.name)}</b></div>`;
-h+=isMod?modUI(cur,s):playUI(cur,s);h+=board()+`<button class=alt id=lv>Leave</button>`;V.innerHTML=h;wire(cur)}
+let h=`<div class=card><div class=mut>${isMod?'Moderator':'Player: '+esc(name)}</div><div class=code>${esc(c)}</div><b>${esc(M.name)}</b><button class=alt id=sh>Share invite link</button></div>`;
+h+=isMod?modUI(cur,s):playUI(cur,s);h+=board()+`<button class=alt id=lv>Leave</button>`;V.innerHTML=h;V.classList.add('room');V.firstElementChild.classList.add('span');wire(cur)}
 for(const[k,f]of[['meta',v=>{if(v)M=v}],['songs',v=>songs=v||{}],['guesses',v=>guesses=v||{}],['players',v=>players=v||{}]])
 unsub.push(onValue(ref(db,`rooms/${c}/${k}`),s=>{f(s.val());draw()}));
 draw();}
 const route=()=>{const m=location.hash.match(/^#\/([A-Za-z0-9]{3,8})$/);m?room(m[1].toUpperCase()):home()};
 addEventListener('hashchange',route);route();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>

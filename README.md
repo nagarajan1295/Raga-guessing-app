@@ -9,3 +9,6 @@ Live raga-guessing game for Carnatic concerts, pub-quiz style.
 Static page (`index.html`) on Firebase Realtime Database. Host with GitHub Pages (Settings → Pages → branch `master`, root). Review `database.rules.json` and apply it in the Firebase console.
 
 `legacy_raga_app.html` is the original single-room prototype.
+
+## Use it anywhere
+It's a installable web app (PWA): open the link in any browser on a phone, tablet or PC; on a phone use *Add to Home Screen*. The host can tap **Share invite link** to send players straight into the room.
